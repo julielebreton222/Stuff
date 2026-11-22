@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wizard Scorekeeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE everyday game-night tool: fast, tappable, a bit of card-table drama
+   IDEA the back of a Wizard card: ruby field, gold rule, a score pad slid across the table
+   PICTURE the live round pad itself: each player's row with their running total and streak
+   COLOUR ruby #a3123a field, white pad, cyan #12a8bd for zeroes, gold #d9a520 for multipliers
+   TYPE Cinzel for names and big totals + Inter for everything else
+   LAYOUT ruby band with standings across the top, pad beneath; phone: same order, one column */
+:root{color-scheme:light dark;--bg:light-dark(#f6f1f2,#140a0e);--pad:light-dark(#ffffff,#22131a);--ink:light-dark(#1c0d13,#f6ecef);--mute:light-dark(#6f5a62,#b9a3ac);--line:light-dark(#e6d9dd,#3a2530);--ruby:#a3123a;--ruby2:light-dark(#7d0c2b,#5e0a22);--zero:#12a8bd;--gold:#d9a520;--neg:light-dark(#b3123a,#ff6b8a);--pos:light-dark(#0f7a54,#5fe0a8)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--zero);outline-offset:2px}
+.top{background:linear-gradient(160deg,var(--ruby),var(--ruby2));color:#fff;padding:18px max(4vw,16px) 64px}
+.bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;max-width:1000px;margin:0 auto}
+h1{font:800 clamp(24px,4vw,34px)/1.05 Cinzel,serif;margin:0;letter-spacing:-.01em;flex:1}
+.seg{display:flex;background:rgba(0,0,0,.25);border-radius:999px;padding:4px}
+.seg button{border:0;background:none;color:#fff;padding:10px 16px;border-radius:999px;min-height:44px;font-weight:600}
+.seg button[aria-pressed=true]{background:#fff;color:var(--ruby)}
+.ghost{border:1px solid rgba(255,255,255,.5);background:none;color:#fff;border-radius:999px;padding:10px 14px;min-height:44px}
+.stand{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;max-width:1000px;margin:16px auto 0}
+.st{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);border-radius:14px;padding:10px 12px;display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center}
+.st.lead{background:#fff;color:var(--ruby)}
+.rk{font:800 22px/1 Cinzel,serif;grid-row:span 2;opacity:.8}
+.nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tt{font:800 24px/1.1 Cinzel,serif;font-variant-numeric:tabular-nums}
+main{max-width:1000px;margin:-44px auto 0;padding:0 max(4vw,16px) 40px}
+.card{background:var(--pad);border-radius:18px;box-shadow:0 1px 0 var(--line),0 10px 30px rgba(60,0,20,.12);overflow:hidden}
+.rh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 18px;border-bottom:1px solid var(--line)}
+.rh h2{font:800 26px/1.1 Cinzel,serif;margin:0;flex:1}
+.rh .of{color:var(--mute);font:500 16px Inter,sans-serif}
+.nav{display:flex;gap:6px}
+.nav button,.icon{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:none;font-size:20px}
+.mult{background:var(--gold);color:#2a1a00;font-weight:700;border-radius:999px;padding:4px 12px;white-space:nowrap}
+.row{display:grid;grid-template-columns:minmax(0,1.3fr) auto auto minmax(80px,auto);gap:10px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)}
+.who b{font:600 19px Cinzel,serif;display:block}
+.who small{color:var(--mute);font-size:13px}
+.flame{color:var(--zero);font-weight:700}
+.entry{display:flex;align-items:center;gap:6px}
+.sign{width:44px;height:52px;border-radius:12px;border:1px solid var(--line);background:none;font-size:22px;font-weight:700}
+.sign.neg{background:var(--neg);color:#fff;border-color:var(--neg)}
+.entry input{width:84px;height:52px;border-radius:12px;border:2px solid var(--line);background:var(--bg);color:var(--ink);font:700 22px Inter,sans-serif;text-align:center;font-variant-numeric:tabular-nums}
+.chips{display:flex;gap:6px}
+.chip{min-height:44px;padding:0 12px;border-radius:999px;border:2px solid var(--line);background:none;font-weight:600;font-size:14px;white-space:nowrap}
+.chip.on.z{background:var(--zero);border-color:var(--zero);color:#fff}
+.chip.on.b{background:#1c0d13;border-color:#1c0d13;color:#fff}
+:root[data-theme=dark] .chip.on.b{background:#fff;color:#1c0d13}
+.res{text-align:right;font-variant-numeric:tabular-nums}
+.res b{font:800 22px Cinzel,serif;display:block;white-space:nowrap}
+.res small{color:var(--mute);font-size:13px;white-space:nowrap}
+.foot{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:16px 18px}
+.save{flex:1;min-height:56px;border:0;border-radius:14px;background:var(--ruby);color:#fff;font-weight:700;font-size:18px}
+.save:disabled{opacity:.45;cursor:default}
+.plain{min-height:56px;border:1px solid var(--line);background:none;border-radius:14px;padding:0 16px;font-weight:600}
+.hint{color:var(--mute);font-size:13px;padding:0 18px 16px;margin:0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--pad)}
+thead th{font:600 15px Cinzel,serif;color:var(--mute)}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:color-mix(in srgb,var(--zero) 8%,var(--pad))}
+td .d{display:block;font-size:12px;color:var(--mute)}
+td .z{color:var(--zero);font-weight:700}
+td .bl{font-weight:700}
+.cum{font:700 17px Cinzel,serif}
+tr.cur td{background:color-mix(in srgb,var(--gold) 14%,var(--pad))}
+tfoot td{font:800 20px Cinzel,serif;border-bottom:0}
+.neg{color:var(--neg)}.posv{color:var(--pos)}
+dialog{border:0;border-radius:18px;padding:0;max-width:440px;width:calc(100% - 32px);background:var(--pad);color:var(--ink)}
+dialog::backdrop{background:rgba(20,0,8,.55)}
+.dl{padding:20px}
+.dl h3{font:800 24px Cinzel,serif;margin:0 0 4px}
+.dl p{color:var(--mute);font-size:14px;margin:0 0 14px}
+.f{display:grid;grid-template-columns:1fr 96px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.f input{height:44px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:600 16px Inter,sans-serif;text-align:center;width:100%}
+.f.wide{grid-template-columns:1fr}
+.f.wide input{text-align:left;padding:0 10px}
+.note{font-size:13px;color:var(--mute);text-align:center;margin:14px 0 0}
+[hidden]{display:none!important}
+@media(max-width:640px){
+.row{grid-template-columns:minmax(0,1fr) auto;row-gap:8px}
+.chips{grid-column:1}
+.res{grid-row:1;grid-column:2}
+.entry{grid-column:2;grid-row:2;justify-content:flex-end}
+.chips{grid-row:2}
+.seg button{padding:10px 12px}
+h1{flex-basis:100%}
+}
+@media(prefers-reduced-motion:no-preference){.tt,.res b{transition:color .2s}.card{animation:in .35s ease-out}@keyframes in{from{transform:translateY(10px);opacity:0}}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="bar">
+    <h1>Wizard Scorekeeper</h1>
+    <div class="seg" role="group" aria-label="View">
+      <button id="vEnter" aria-pressed="true">Enter round</button>
+      <button id="vBoard" aria-pressed="false">Full scoreboard</button>
+    </div>
+    <button class="ghost" id="openRules">Rules</button>
+  </div>
+  <div class="stand" id="stand"></div>
+</header>
+
+<main>
+  <section class="card" id="enterView">
+    <div class="rh">
+      <h2 id="rTitle">Round</h2>
+      <span class="mult" id="rMult" hidden></span>
+      <div class="nav">
+        <button id="prev" aria-label="Previous round">‹</button>
+        <button id="next" aria-label="Next round">›</button>
+      </div>
+    </div>
+    <div id="rows"></div>
+    <div class="foot">
+      <button class="plain" id="clearR">Clear</button>
+      <button class="save" id="saveR">Save round</button>
+    </div>
+    <p class="hint">Type each player's score for the round (tap ± for a minus). Tick <b>Zero</b> if they bid and made zero, <b>Blind 0</b> if it was a blind zero. Streak bonuses and final-round multipliers are added for you.</p>
+  </section>
+
+  <section class="card" id="boardView" hidden>
+    <div class="rh">
+      <h2>Every round</h2>
+      <button class="plain" id="backEnter" style="min-height:44px">← Back to entry</button>
+    </div>
+    <div class="scroll"><table id="board"></table></div>
+    <p class="hint" style="padding-top:12px">Each cell: points scored that round, with the running total underneath. Cyan ✦ marks a zero (with streak count), ● a blind zero. Tap any round to edit it.</p>
+  </section>
+  <p class="note">Sample game in progress. Reset it under Rules.</p>
+</main>
+
+<dialog id="rules">
+  <form class="dl" method="dialog" id="rulesForm">
+    <h3>House rules</h3>
+    <p>Base scoring follows the official rules: an exact bid scores 20 + 10 per trick, a miss costs 10 per trick off, and there are 60 ÷ players rounds. The zero streak, blind zero and final-round settings are house rules I guessed at. Change any number and every score recalculates.</p>
+    <div class="f wide"><label for="rPlayers">Players (comma separated)</label><input id="rPlayers"></div>
+    <div class="f"><label for="rRounds">Number of rounds</label><input id="rRounds" type="number" min="1" max="60"></div>
+    <div class="f"><label for="rStreak">Zero streak bonus: extra points per zero in a row (2nd zero +1×, 3rd +2×…)</label><input id="rStreak" type="number"></div>
+    <div class="f"><label for="rBWin">Blind zero made: bonus</label><input id="rBWin" type="number"></div>
+    <div class="f"><label for="rBLose">Blind zero missed: penalty</label><input id="rBLose" type="number"></div>
+    <div class="f wide"><label for="rMults">Final-round multipliers, last round at the end (e.g. 2,3)</label><input id="rMults"></div>
+    <div class="foot" style="padding:16px 0 0">
+      <button class="plain" type="button" id="newGame">New game</button>
+      <button class="save" value="ok">Done</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+{
+const KEY='wizard-score-v1';
+const sample={rules:{players:['Maya','Léo','Sam','Rosa'],rounds:15,streak:10,bWin:30,bLose:30,mults:[2,3]},
+  rounds:[
+    [{s:30},{s:20},{s:-10},{s:20,z:1}],
+    [{s:40},{s:-20},{s:30},{s:20,z:1}],
+    [{s:-10},{s:50},{s:40},{s:20,z:1}],
+    [{s:60},{s:30},{s:-20},{s:-10}],
+    [{s:20,z:1,b:1},{s:-30},{s:50},{s:40}],
+    [{s:70},{s:40},{s:20,z:1},{s:-20}]
+  ],cur:6};
+let st;
+try{st=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!st||!st.rules)st=window.claude?.hot?.data?.rules?window.claude.hot.data:structuredClone(sample);
+window.claude?.hot?.snapshot?.(()=>st);
+let draft=null,sign=[];
+const $=id=>document.getElementById(id);
+const fmt=n=>(n>0?'+':n<0?'−':'')+Math.abs(n);
+const store=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
+
+function multFor(r){const R=st.rules,m=R.mults,from=R.rounds-m.length;return r>=from?m[r-from]||1:1}
+
+/* scoring: (entered score + streak bonus + blind) × round multiplier */
+function cell(e,streak,r){
+  const R=st.rules,s=+e.s||0;
+  const bonus=e.z&&streak>1?R.streak*(streak-1):0;
+  const blind=e.b?(e.z?R.bWin:-R.bLose):0;
+  const m=multFor(r);
+  return {base:s,bonus,blind,m,pts:(s+bonus+blind)*m};
+}
+function compute(){
+  const P=st.rules.players.length,out=[];
+  const tot=Array(P).fill(0),stk=Array(P).fill(0);
+  st.rounds.forEach((rd,r)=>{
+    out[r]=rd.map((e,p)=>{stk[p]=e&&e.z?stk[p]+1:0;const c=cell(e||{},stk[p],r);tot[p]+=c.pts;return {...c,z:e?.z,b:e?.b,streak:stk[p],cum:tot[p]}});
+  });
+  return {out,tot,stk};
+}
+
+function renderStand(){
+  const {tot,stk}=compute(),names=st.rules.players;
+  const order=names.map((n,i)=>i).sort((a,b)=>tot[b]-tot[a]);
+  $('stand').innerHTML=order.map((i,k)=>`<div class="st${k===0&&st.rounds.length?' lead':''}"><span class="rk">${k+1}</span><span class="nm">${names[i]}${stk[i]>1?` <span title="zero streak">✦${stk[i]}</span>`:''}</span><span class="tt">${tot[i]}</span></div>`).join('');
+}
+
+function loadDraft(){
+  const P=st.rules.players.length,ex=st.rounds[st.cur];
+  draft=Array.from({length:P},(_,p)=>ex&&ex[p]?{...ex[p]}:{s:'',z:0,b:0});
+  sign=draft.map(d=>(+d.s||0)<0);
+  draft.forEach(d=>{if(d.s!=='')d.s=Math.abs(+d.s)});
+}
+function draftVal(p){const d=draft[p];return d.s===''?null:(sign[p]?-1:1)*(+d.s||0)}
+function streakBefore(p){let n=0;for(let r=st.cur-1;r>=0;r--){if(st.rounds[r]?.[p]?.z)n++;else break}return n}
+
+function renderEnter(){
+  const R=st.rules,r=st.cur,m=multFor(r),{out}=compute();
+  $('rTitle').innerHTML=`Round ${r+1} <span class="of">of ${R.rounds}${r<st.rounds.length?' · editing':''}</span>`;
+  $('rMult').hidden=m===1;$('rMult').textContent=`×${m} final round`;
+  $('prev').disabled=r===0;$('next').disabled=r>=st.rounds.length||r>=R.rounds-1;
+  $('rows').innerHTML=R.players.map((n,p)=>{
+    const d=draft[p],v=draftVal(p),sb=streakBefore(p);
+    const c=cell({s:v||0,z:d.z,b:d.b},d.z?sb+1:0,r);
+    const prevTot=r>0&&out[r-1]?out[r-1][p].cum:0;
+    const parts=[];if(c.bonus)parts.push(`streak +${c.bonus}`);if(c.blind)parts.push(`blind ${fmt(c.blind)}`);if(c.m>1)parts.push(`×${c.m}`);
+    return `<div class="row">
+      <div class="who"><b>${n}</b><small>${prevTot} pts${sb?` · <span class="flame">✦ ${sb} zero${sb>1?'s':''} in a row</span>`:''}</small></div>
+      <div class="entry"><button class="sign${sign[p]?' neg':''}" data-sign="${p}" aria-label="Toggle minus for ${n}">±</button>
+        <input id="s${p}" data-p="${p}" inputmode="numeric" pattern="[0-9]*" placeholder="0" value="${d.s}" aria-label="${n} score"></div>
+      <div class="chips"><button class="chip z${d.z?' on':''}" data-z="${p}" aria-pressed="${!!d.z}">Zero</button><button class="chip b${d.b?' on':''}" data-b="${p}" aria-pressed="${!!d.b}">Blind 0</button></div>
+      <div class="res" id="res${p}"><b class="${c.pts<0?'neg':c.pts>0?'posv':''}">${v===null&&!d.z&&!d.b?'–':fmt(c.pts)}</b><small>${parts.join(' · ')||'&nbsp;'}</small></div>
+    </div>`}).join('');
+  $('saveR').disabled=draft.every((d,p)=>draftVal(p)===null&&!d.z&&!d.b);
+  $('saveR').textContent=r<st.rounds.length?'Update round':(r>=R.rounds-1?'Save final round':'Save round →');
+}
+
+function renderBoard(){
+  const R=st.rules,{out,tot}=compute();
+  const head=`<thead><tr><th>Round</th>${R.players.map(n=>`<th>${n}</th>`).join('')}</tr></thead>`;
+  const body=Array.from({length:R.rounds},(_,r)=>{
+    const m=multFor(r),row=out[r];
+    return `<tr data-r="${r}" class="${r===st.cur?'cur':''}"><td>${r+1}${m>1?` <span class="mult">×${m}</span>`:''}</td>${R.players.map((n,p)=>{
+      if(!row)return '<td style="color:var(--mute)">·</td>';
+      const c=row[p],tags=(c.z?`<span class="z">✦${c.streak>1?c.streak:''}</span> `:'')+(c.b?'<span class="bl">● </span>':'');
+      return `<td>${tags}<span class="${c.pts<0?'neg':''}">${fmt(c.pts)}</span><span class="d cum">${c.cum}</span></td>`}).join('')}</tr>`}).join('');
+  const foot=`<tfoot><tr><td>Total</td>${tot.map(t=>`<td>${t}</td>`).join('')}</tr></tfoot>`;
+  $('board').innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
+}
+
+function show(v){
+  const b=v==='board';$('enterView').hidden=b;$('boardView').hidden=!b;
+  $('vEnter').setAttribute('aria-pressed',!b);$('vBoard').setAttribute('aria-pressed',b);
+  if(b)renderBoard();else renderEnter();
+}
+function refresh(){renderStand();renderEnter();if(!$('boardView').hidden)renderBoard()}
+function go(r){st.cur=Math.max(0,Math.min(r,st.rounds.length,st.rules.rounds-1));loadDraft();refresh()}
+
+$('rows').addEventListener('input',e=>{const p=e.target.dataset.p;if(p==null)return;draft[p].s=e.target.value.replace(/[^0-9]/g,'');
+  const pos=e.target.selectionStart;renderEnter();const i=$('s'+p);i.focus();try{i.setSelectionRange(pos,pos)}catch(_){}});
+$('rows').addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;const d=t.dataset;
+  if(d.sign!=null)sign[d.sign]=!sign[d.sign];
+  if(d.z!=null){draft[d.z].z=draft[d.z].z?0:1;if(draft[d.z].z&&draft[d.z].s==='')draft[d.z].s='';}
+  if(d.b!=null){draft[d.b].b=draft[d.b].b?0:1}
+  renderEnter()});
+$('rows').addEventListener('keydown',e=>{if(e.key==='Enter'){const p=+e.target.dataset.p;const n=$('s'+(p+1));if(n)n.focus();else $('saveR').click()}});
+$('saveR').onclick=()=>{
+  st.rounds[st.cur]=draft.map((d,p)=>({s:draftVal(p)||0,z:d.z?1:0,b:d.b?1:0}));
+  const wasNew=st.cur===st.rounds.length-1;store();
+  go(wasNew&&st.cur<st.rules.rounds-1?st.cur+1:st.cur);
+  if(wasNew&&st.rounds.length>=st.rules.rounds)show('board');
+  else{const i=$('s0');i&&i.focus()}};
+$('clearR').onclick=()=>{draft.forEach(d=>{d.s='';d.z=0;d.b=0});sign=sign.map(()=>false);renderEnter()};
+$('prev').onclick=()=>go(st.cur-1);$('next').onclick=()=>go(st.cur+1);
+$('vEnter').onclick=()=>show('enter');$('vBoard').onclick=()=>show('board');$('backEnter').onclick=()=>show('enter');
+$('board').addEventListener('click',e=>{const tr=e.target.closest('tr[data-r]');if(!tr)return;const r=+tr.dataset.r;if(r>st.rounds.length)return;go(r);show('enter')});
+
+const dlg=$('rules');
+$('openRules').onclick=()=>{const R=st.rules;$('rPlayers').value=R.players.join(', ');$('rRounds').value=R.rounds;$('rStreak').value=R.streak;$('rBWin').value=R.bWin;$('rBLose').value=R.bLose;$('rMults').value=R.mults.join(',');dlg.showModal()};
+$('rulesForm').addEventListener('input',()=>{const R=st.rules;
+  const ps=$('rPlayers').value.split(',').map(s=>s.trim()).filter(Boolean);if(ps.length){if(ps.length!==R.players.length){R.rounds=Math.floor(60/ps.length);$('rRounds').value=R.rounds}R.players=ps;st.rounds=st.rounds.map(rd=>ps.map((_,i)=>rd[i]||{s:0}))}
+  R.rounds=Math.max(1,Math.min(60,+$('rRounds').value||R.rounds));R.streak=+$('rStreak').value||0;R.bWin=+$('rBWin').value||0;R.bLose=+$('rBLose').value||0;
+  R.mults=$('rMults').value.split(',').map(Number).filter(n=>n>0);st.rounds=st.rounds.slice(0,R.rounds);
+  st.cur=Math.min(st.cur,st.rounds.length,R.rounds-1);store();loadDraft();refresh()});
+$('newGame').onclick=()=>{st.rounds=[];st.cur=0;store();loadDraft();refresh();dlg.close();show('enter')};
+
+loadDraft();refresh();
+}
+</script>
+</body>
+</html>

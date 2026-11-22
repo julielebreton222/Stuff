@@ -127,7 +127,7 @@ h1{flex-basis:100%}
       <button class="plain" id="clearR">Clear</button>
       <button class="save" id="saveR">Save round</button>
     </div>
-    <p class="hint">Type each player's score for the round (tap ± for a minus). Tick <b>Zero</b> if they bid and made zero, <b>Blind 0</b> if it was a blind zero. Streak bonuses and final-round multipliers are added for you.</p>
+    <p class="hint">Type each player's score for the round (tap ± for a minus). Tick <b>Zero</b> if they bid and made zero. In the final rounds a <b>Blind 0</b> button appears for blind zeroes. Streak bonuses and final-round multipliers are added for you.</p>
   </section>
 
   <section class="card" id="boardView" hidden>
@@ -148,6 +148,7 @@ h1{flex-basis:100%}
     <div class="f wide"><label for="rPlayers">Players (comma separated)</label><input id="rPlayers"></div>
     <div class="f"><label for="rRounds">Number of rounds</label><input id="rRounds" type="number" min="1" max="60"></div>
     <div class="f"><label for="rStreak">Zero streak bonus: extra points per zero in a row (2nd zero +1×, 3rd +2×…)</label><input id="rStreak" type="number"></div>
+    <div class="f"><label for="rBlindN">Blind zero allowed in the last … rounds</label><input id="rBlindN" type="number" min="0"></div>
     <div class="f"><label for="rBWin">Blind zero made: bonus</label><input id="rBWin" type="number"></div>
     <div class="f"><label for="rBLose">Blind zero missed: penalty</label><input id="rBLose" type="number"></div>
     <div class="f wide"><label for="rMults">Final-round multipliers, last round at the end (e.g. 2,3)</label><input id="rMults"></div>
@@ -161,13 +162,13 @@ h1{flex-basis:100%}
 <script>
 {
 const KEY='wizard-score-v1';
-const sample={rules:{players:['Maya','Léo','Sam','Rosa'],rounds:15,streak:10,bWin:30,bLose:30,mults:[2,3]},
+const sample={rules:{players:['Maya','Léo','Sam','Rosa'],rounds:15,streak:10,bWin:30,bLose:30,mults:[2,3],blindN:2},
   rounds:[
     [{s:30},{s:20},{s:-10},{s:20,z:1}],
     [{s:40},{s:-20},{s:30},{s:20,z:1}],
     [{s:-10},{s:50},{s:40},{s:20,z:1}],
     [{s:60},{s:30},{s:-20},{s:-10}],
-    [{s:20,z:1,b:1},{s:-30},{s:50},{s:40}],
+    [{s:20,z:1},{s:-30},{s:50},{s:40}],
     [{s:70},{s:40},{s:20,z:1},{s:-20}]
   ],cur:6};
 let st;
@@ -179,6 +180,7 @@ const $=id=>document.getElementById(id);
 const fmt=n=>(n>0?'+':n<0?'−':'')+Math.abs(n);
 const store=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
 
+function blindOk(r){const R=st.rules;return r>=R.rounds-(R.blindN??R.mults.length)}
 function multFor(r){const R=st.rules,m=R.mults,from=R.rounds-m.length;return r>=from?m[r-from]||1:1}
 
 /* scoring: (entered score + streak bonus + blind) × round multiplier */
@@ -214,9 +216,11 @@ function draftVal(p){const d=draft[p];return d.s===''?null:(sign[p]?-1:1)*(+d.s|
 function streakBefore(p){let n=0;for(let r=st.cur-1;r>=0;r--){if(st.rounds[r]?.[p]?.z)n++;else break}return n}
 
 function renderEnter(){
-  const R=st.rules,r=st.cur,m=multFor(r),{out}=compute();
+  const R=st.rules,r=st.cur,m=multFor(r),{out}=compute(),bOk=blindOk(r);
+  if(!bOk)draft.forEach(d=>d.b=0);
   $('rTitle').innerHTML=`Round ${r+1} <span class="of">of ${R.rounds}${r<st.rounds.length?' · editing':''}</span>`;
-  $('rMult').hidden=m===1;$('rMult').textContent=`×${m} final round`;
+  $('rMult').hidden=m===1;$('rMult').textContent=`×${m} final round${bOk?' · blind zero allowed':''}`;
+  if(bOk&&m===1){$('rMult').hidden=false;$('rMult').textContent='Blind zero allowed'}
   $('prev').disabled=r===0;$('next').disabled=r>=st.rounds.length||r>=R.rounds-1;
   $('rows').innerHTML=R.players.map((n,p)=>{
     const d=draft[p],v=draftVal(p),sb=streakBefore(p);
@@ -227,7 +231,7 @@ function renderEnter(){
       <div class="who"><b>${n}</b><small>${prevTot} pts${sb?` · <span class="flame">✦ ${sb} zero${sb>1?'s':''} in a row</span>`:''}</small></div>
       <div class="entry"><button class="sign${sign[p]?' neg':''}" data-sign="${p}" aria-label="Toggle minus for ${n}">±</button>
         <input id="s${p}" data-p="${p}" inputmode="numeric" pattern="[0-9]*" placeholder="0" value="${d.s}" aria-label="${n} score"></div>
-      <div class="chips"><button class="chip z${d.z?' on':''}" data-z="${p}" aria-pressed="${!!d.z}">Zero</button><button class="chip b${d.b?' on':''}" data-b="${p}" aria-pressed="${!!d.b}">Blind 0</button></div>
+      <div class="chips"><button class="chip z${d.z?' on':''}" data-z="${p}" aria-pressed="${!!d.z}">Zero</button>${bOk?`<button class="chip b${d.b?' on':''}" data-b="${p}" aria-pressed="${!!d.b}">Blind 0</button>`:''}</div>
       <div class="res" id="res${p}"><b class="${c.pts<0?'neg':c.pts>0?'posv':''}">${v===null&&!d.z&&!d.b?'–':fmt(c.pts)}</b><small>${parts.join(' · ')||'&nbsp;'}</small></div>
     </div>`}).join('');
   $('saveR').disabled=draft.every((d,p)=>draftVal(p)===null&&!d.z&&!d.b);
@@ -275,11 +279,11 @@ $('vEnter').onclick=()=>show('enter');$('vBoard').onclick=()=>show('board');$('b
 $('board').addEventListener('click',e=>{const tr=e.target.closest('tr[data-r]');if(!tr)return;const r=+tr.dataset.r;if(r>st.rounds.length)return;go(r);show('enter')});
 
 const dlg=$('rules');
-$('openRules').onclick=()=>{const R=st.rules;$('rPlayers').value=R.players.join(', ');$('rRounds').value=R.rounds;$('rStreak').value=R.streak;$('rBWin').value=R.bWin;$('rBLose').value=R.bLose;$('rMults').value=R.mults.join(',');dlg.showModal()};
+$('openRules').onclick=()=>{const R=st.rules;$('rPlayers').value=R.players.join(', ');$('rRounds').value=R.rounds;$('rStreak').value=R.streak;$('rBWin').value=R.bWin;$('rBLose').value=R.bLose;$('rMults').value=R.mults.join(',');$('rBlindN').value=R.blindN??R.mults.length;dlg.showModal()};
 $('rulesForm').addEventListener('input',()=>{const R=st.rules;
   const ps=$('rPlayers').value.split(',').map(s=>s.trim()).filter(Boolean);if(ps.length){if(ps.length!==R.players.length){R.rounds=Math.floor(60/ps.length);$('rRounds').value=R.rounds}R.players=ps;st.rounds=st.rounds.map(rd=>ps.map((_,i)=>rd[i]||{s:0}))}
   R.rounds=Math.max(1,Math.min(60,+$('rRounds').value||R.rounds));R.streak=+$('rStreak').value||0;R.bWin=+$('rBWin').value||0;R.bLose=+$('rBLose').value||0;
-  R.mults=$('rMults').value.split(',').map(Number).filter(n=>n>0);st.rounds=st.rounds.slice(0,R.rounds);
+  R.mults=$('rMults').value.split(',').map(Number).filter(n=>n>0);R.blindN=Math.max(0,+$('rBlindN').value||0);st.rounds=st.rounds.slice(0,R.rounds);
   st.cur=Math.min(st.cur,st.rounds.length,R.rounds-1);store();loadDraft();refresh()});
 $('newGame').onclick=()=>{st.rounds=[];st.cur=0;store();loadDraft();refresh();dlg.close();show('enter')};
 
